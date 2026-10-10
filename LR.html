@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LR Generator — Your Name</title>
+  <style>
+    :root {
+      --accent: #6d4aff;
+      --text: #1a1a2e;
+      --muted: #6b6b80;
+      --bg: #fafafc;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 48px 24px;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+
+    .input-group {
+      background: #fff;
+      border: 1px solid #ececf2;
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 1rem;
+      border: 2px solid #e0e0eb;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    input[type="number"]:focus {
+      border-color: var(--accent);
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 8px 0;
+    }
+
+    .slider-value {
+      font-size: 0.9rem;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    .aggressiveness-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    button.generate-btn {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 14px 32px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button.generate-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(109, 74, 255, 0.35);
+    }
+
+    button.generate-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .error-message {
+      color: #c73e3e;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      display: none;
+    }
+
+    .error-message.visible {
+      display: block;
+    }
+
+    .output-section {
+      background: #fff;
+      border: 1px solid #ececf2;
+      border-radius: 14px;
+      padding: 28px;
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .lr-output {
+      font-family: "Courier New", monospace;
+      font-size: 1.25rem;
+      word-break: break-all;
+      letter-spacing: 4px;
+      color: var(--text);
+      text-align: center;
+    }
+
+    .output-empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Random LR Generator</h1>
+
+    <div class="input-group">
+      <label for="count-input">Enter count (1–20)</label>
+      <div id="error-msg" class="error-message"></div>
+      <input 
+        type="number" 
+        id="count-input" 
+        min="1" 
+        max="20" 
+        placeholder="Enter a number"
+        value="10"
+      />
+
+      <div class="aggressiveness-label">Aggressiveness (decorative only)</div>
+      <input 
+        type="range" 
+        id="aggression-slider" 
+        min="0" 
+        max="100" 
+        value="50"
+      />
+      <div id="aggression-value" class="slider-value">50%</div>
+
+      <button id="generate-btn" class="generate-btn">Generate Sequence</button>
+    </div>
+
+    <div class="output-section">
+      <div id="output" class="lr-output output-empty">
+        Press Generate to see your sequence
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const countInput = document.getElementById('count-input');
+    const aggressionSlider = document.getElementById('aggression-slider');
+    const aggressionValue = document.getElementById('aggression-value');
+    const generateBtn = document.getElementById('generate-btn');
+    const outputEl = document.getElementById('output');
+    const errorMsg = document.getElementById('error-msg');
+
+    // Update slider value display
+    aggressionSlider.addEventListener('input', () => {
+      aggressionValue.textContent = `${aggressionSlider.value}%`;
+    });
+
+    // Generate function
+    function generateLR(count) {
+      let result = '';
+      for (let i = 0; i < count; i++) {
+        result += Math.random() < 0.5 ? 'L' : 'R';
+      }
+      return result;
+    }
+
+    // Validation and generation
+    function handleGenerate() {
+      errorMsg.classList.remove('visible');
+      const count = parseInt(countInput.value, 10);
+
+      // Validate input
+      if (isNaN(count) || count < 1 || count > 20) {
+        errorMsg.textContent = 'Please enter a number between 1 and 20.';
+        errorMsg.classList.add('visible');
+        return;
+      }
+
+      // Disable button during generation
+      generateBtn.disabled = true;
+      outputEl.classList.add('output-empty');
+
+      // Simulate slight delay for effect (optional)
+      setTimeout(() => {
+        const sequence = generateLR(count);
+        outputEl.textContent = sequence;
+        outputEl.classList.remove('output-empty');
+        generateBtn.disabled = false;
+      }, 150);
+    }
+
+    generateBtn.addEventListener('click', handleGenerate);
+
+    // Allow Enter key to trigger generation
+    countInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleGenerate();
+    });
+  </script>
+</body>
+</html>
+

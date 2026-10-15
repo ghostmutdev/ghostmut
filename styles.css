@@ -123,11 +123,93 @@ main {
     margin-bottom: 1.5rem;
 }
 
-.character-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-    gap: 1rem;
-    margin: 2rem 0;
+/* --- replace the old .grid-item rules with these --- */
+.grid-item {
+    background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+    border: none;
+    border-radius: 10px;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    font-family: inherit;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.grid-item:hover,
+.grid-item:focus-visible {
+    transform: scale(1.06);
+    box-shadow: 0 6px 18px rgba(102, 126, 234, 0.35);
+    outline: none;
+}
+
+.grid-item .char {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #333;
+    line-height: 1.1;
+}
+
+.grid-item .reading {
+    font-size: 0.85rem;
+    color: #666;
+}
+
+/* --- new: toast notifications --- */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.5rem;
+    transform: translate(-50%, 130%);
+    background: #333;
+    color: #fff;
+    padding: 0.75rem 1.25rem;
+    border-radius: 25px;
+    font-size: 0.85rem;
+    max-width: 90vw;
+    text-align: center;
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    z-index: 1100;
+    pointer-events: none;
+}
+
+.toast.visible {
+    transform: translate(-50%, 0);
+    opacity: 1;
+}
+
+/* --- new: quiz completion panel --- */
+.completion {
+    text-align: center;
+    padding: 1rem 0;
+}
+
+.completion h2 {
+    color: #667eea;
+    margin-bottom: 0.75rem;
+}
+
+.completion p {
+    color: #555;
+    margin-bottom: 1.5rem;
+}
+
+.completion-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.empty-note {
+    color: #666;
+    font-size: 0.9rem;
+}
+
 }
 
 .grid-item {
@@ -135,24 +217,7 @@ main {
     border-radius: 10px;
     padding: 1.5rem 1rem;
     text-align: center;
-    transition: transform 0.2s;
-}
-
-.grid-item:hover {
-    transform: scale(1.05);
-}
-
-.grid-item .char {
-    font-size: 2.5rem;
-    font-weight: bold;
-    color: #333;
-}
-
-.grid-item .reading {
-    font-size: 0.9rem;
-    color: #666;
-    margin-top: 0.5rem;
-}
+    transition:
 
 .start-quiz-btn {
     background: linear-gradient(135deg, #667eea, #764ba2);

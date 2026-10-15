@@ -1,24 +1,57 @@
-// app.js - Updated with audio, stats, and localStorage
-class JapaneseQuiz {
-    constructor() {
+/* Japanese Character Learning — quiz logic, audio, stats, local storage */
+(function () {
+    'use strict';
+
+    var STORAGE_KEY = 'japaneseLearningStats_v2';
+
+    var MODE_TITLES = { hiragana: 'ひらがな', katakana: 'カタカナ', kanji: '漢字' };
+    var SECTION_LABELS = { section1: 'Part 1', section2: 'Part 2', section3: 'Part 3' };
+    var MODE_INFO = {
+        hiragana: 'ひらがな — the basic syllabary, used for grammatical endings and native words.',
+        katakana: 'カタカナ — used mainly for loanwords, foreign names, and emphasis.',
+        kanji: '漢字 — logographic characters with several possible readings. Any listed reading is accepted.'
+    };
+
+    function todayKey() {
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    /* Lowercase, strip spaces/punctuation, expand macrons so "jū" == "juu" */
+    function normalize(value) {
+        return String(value)
+            .toLowerCase()
+            .replace(/[\s\u3000]/g, '')
+            .replace(/[.'’\-·・、。！？]/g, '')
+            .replace(/ā/g, 'aa')
+            .replace(/ī/g, 'ii')
+            .replace(/ū/g, 'uu')
+            .replace(/ē/g, 'ee')
+            .replace(/ō/g, 'oo');
+    }
+
+    function JapaneseQuiz() {
         this.currentMode = 'hiragana';
         this.currentSection = 'section1';
         this.questionList = [];
         this.currentIndex = 0;
         this.score = 0;
         this.streak = 0;
-        this.bestStreak = 0;
         this.totalAnswered = 0;
         this.currentCharacter = null;
-        
-        // Stats tracking
+        this.advanceTimer = null;
+
         this.stats = this.loadStats();
-        
+
         this.ui = {
             navBtns: document.querySelectorAll('.nav-btn'),
+            sectionBtns: document.querySelectorAll('.section-btn'),
             studyView: document.getElementById('studyView'),
             quizView: document.getElementById('quizView'),
-            sectionSelector: document.querySelectorAll('.section-btn'),
+            quizBody: document.getElementById('quizBody'),
+            completionPanel: document.getElementById('completionPanel'),
+            completionText: document.getElementById('completionText'),
+            retryBtn: document.getElementById('retryBtn'),
+            completionBackBtn: document.getElementById('completionBackBtn'),
             sectionTitle: document.getElementById('sectionTitle'),
             sectionDescription: document.getElementById('sectionDescription'),
             studyGrid: document.getElementById('studyGrid'),
@@ -27,6 +60,7 @@ class JapaneseQuiz {
             characterDisplay: document.getElementById('characterDisplay'),
             audioBtn: document.getElementById('audioBtn'),
             hintDisplay: document.getElementById('hintDisplay'),
+            answerForm: document.getElementById('answerForm'),
             answerInput: document.getElementById('answerInput'),
             feedback: document.getElementById('feedback'),
             feedbackText: document.getElementById('feedbackText'),
@@ -37,440 +71,507 @@ class JapaneseQuiz {
             skipBtn: document.getElementById('skipBtn'),
             modeInfo: document.getElementById('modeInfo'),
             showRomaji: document.getElementById('showRomaji'),
-            japaneseInput: document.getElementById('japaneseInput'),
             autoPlayAudio: document.getElementById('autoPlayAudio'),
             statsBtn: document.getElementById('statsBtn'),
             statsModal: document.getElementById('statsModal'),
             closeStats: document.getElementById('closeStats'),
-            resetStats: document.getElementById('resetStats')
+            resetStats: document.getElementById('resetStats'),
+            toast: document.getElementById('toast')
         };
-        
-        this.speechSynthesis = window.speechSynthesis;
-        this.currentVoice = null;
-        
+
+        this.synth = window.speechSynthesis || null;
+        this.jpVoice = null;
+        this.toastShown = false;
+
         this.init();
     }
-    
-    init() {
-        this.setupEventListeners();
-        this.loadVoice();
-        this.showStudyView();
-    }
-    
-    loadStats() {
-        const saved = localStorage.getItem('japaneseLearningStats');
-        return saved ? JSON.parse(saved) : {
-            totalStudied: 0,
-            correctAnswers: 0,
+
+    /* ---------- storage ---------- */
+
+    JapaneseQuiz.prototype.defaultStats = function () {
+        return {
+            version: 2,
             totalAttempts: 0,
+            totalCorrect: 0,
             bestStreak: 0,
-            wrongCharacters: {},
-            startDate: new Date().toISOString(),
-            lastActiveDate: new Date().toISOString(),
-            progress: {
-                hiragana: { studied: new Set(), quizTaken: [] },
-                katakana: { studied: new Set(), quizTaken: [] },
-                kanji: { studied: new Set(), quizTaken: [] }
-            }
+            daysSeen: [todayKey()],
+            chars: { hiragana: {}, katakana: {}, kanji: {} }
         };
-    }
-    
-    saveStats() {
-        localStorage.setItem('japaneseLearningStats', JSON.stringify(this.stats));
-    }
-    
-    loadVoice() {
-        // Try to find a Japanese voice
-        if (this.speechSynthesis) {
-            const voices = this.speechSynthesis.getVoices();
-            this.currentVoice = voices.find(v => v.lang.startsWith('ja')) || 
-                               voices.find(v => v.lang.includes('Japan'));
-            
-            this.speechSynthesis.onvoiceschanged = () => {
-                const voices = this.speechSynthesis.getVoices();
-                this.currentVoice = voices.find(v => v.lang.startsWith('ja'));
-            };
+    };
+
+    JapaneseQuiz.prototype.loadStats = function () {
+        var fresh = this.defaultStats();
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return fresh;
+            var parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object' || !parsed.chars) return fresh;
+            // merge onto a fresh object so missing keys can never crash us
+            var merged = fresh;
+            merged.totalAttempts = parsed.totalAttempts || 0;
+            merged.totalCorrect = parsed.totalCorrect || 0;
+            merged.bestStreak = parsed.bestStreak || 0;
+            merged.daysSeen = Array.isArray(parsed.daysSeen) && parsed.daysSeen.length
+                ? parsed.daysSeen : [todayKey()];
+            ['hiragana', 'katakana', 'kanji'].forEach(function (mode) {
+                merged.chars[mode] = (parsed.chars && parsed.chars[mode]) || {};
+            });
+            return merged;
+        } catch (err) {
+            return fresh;
         }
-    }
-    
-    playAudio(text) {
-        if (!this.speechSynthesis) return;
-        
-        this.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.8;
-        if (this.currentVoice) {
-            utterance.voice = this.currentVoice;
+    };
+
+    JapaneseQuiz.prototype.saveStats = function () {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.stats));
+        } catch (err) {
+            /* storage full or blocked — the app keeps working in-memory */
         }
-        utterance.lang = 'ja-JP';
-        this.speechSynthesis.speak(utterance);
-    }
-    
-    setupEventListeners() {
-        // Navigation buttons
-        this.ui.navBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const mode = btn.dataset.mode;
-                this.switchMode(mode);
+    };
+
+    JapaneseQuiz.prototype.touchDay = function () {
+        var key = todayKey();
+        if (this.stats.daysSeen.indexOf(key) === -1) {
+            this.stats.daysSeen.push(key);
+        }
+    };
+
+    JapaneseQuiz.prototype.charRecord = function (mode, char) {
+        var bucket = this.stats.chars[mode] || (this.stats.chars[mode] = {});
+        if (!bucket[char]) {
+            bucket[char] = { seen: 0, correct: 0, wrong: 0, reviewed: false };
+        }
+        return bucket[char];
+    };
+
+    /* ---------- init ---------- */
+
+    JapaneseQuiz.prototype.init = function () {
+        this.bindEvents();
+        this.loadVoices();
+        this.switchMode('hiragana');
+    };
+
+    JapaneseQuiz.prototype.bindEvents = function () {
+        var self = this;
+
+        Array.prototype.forEach.call(this.ui.navBtns, function (btn) {
+            btn.addEventListener('click', function () {
+                self.switchMode(btn.getAttribute('data-mode'));
             });
         });
-        
-        // Section buttons
-        this.ui.sectionSelector.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const section = btn.dataset.section;
-                this.switchSection(section);
+
+        Array.prototype.forEach.call(this.ui.sectionBtns, function (btn) {
+            btn.addEventListener('click', function () {
+                self.switchSection(btn.getAttribute('data-section'));
             });
         });
-        
-        // Start quiz button
-        this.ui.startQuizBtn.addEventListener('click', () => this.startQuiz());
-        
-        // Back to study button
-        this.ui.backStudyBtn.addEventListener('click', () => this.showStudyView());
-        
-        // Form submission
-        document.getElementById('answerForm').addEventListener('submit', (e) => {
+
+        this.ui.startQuizBtn.addEventListener('click', function () { self.startQuiz(); });
+        this.ui.backStudyBtn.addEventListener('click', function () { self.showStudyView(); });
+        this.ui.completionBackBtn.addEventListener('click', function () { self.showStudyView(); });
+        this.ui.retryBtn.addEventListener('click', function () { self.startQuiz(); });
+
+        this.ui.answerForm.addEventListener('submit', function (e) {
             e.preventDefault();
-            this.checkAnswer();
+            self.checkAnswer();
         });
-        
-        // Audio button
-        this.ui.audioBtn.addEventListener('click', () => {
-            if (this.currentCharacter) {
-                this.playAudio(this.currentCharacter.char);
+
+        this.ui.audioBtn.addEventListener('click', function () {
+            if (self.currentCharacter) self.playAudio(self.currentCharacter.char);
+        });
+
+        this.ui.skipBtn.addEventListener('click', function () { self.skipQuestion(); });
+
+        this.ui.showRomaji.addEventListener('change', function () { self.updateHint(); });
+
+        this.ui.autoPlayAudio.addEventListener('change', function () {
+            if (self.ui.autoPlayAudio.checked && self.currentCharacter) {
+                self.playAudio(self.currentCharacter.char);
             }
         });
-        
-        // Skip button
-        this.ui.skipBtn.addEventListener('click', () => this.skipQuestion());
-        
-        // Enter key in input
-        this.ui.answerInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                this.checkAnswer();
-            }
+
+        /* delegated click on study tiles (no inline handlers, so no global lookups) */
+        this.ui.studyGrid.addEventListener('click', function (e) {
+            var tile = e.target.closest ? e.target.closest('.grid-item') : null;
+            if (tile) self.playAudio(tile.getAttribute('data-char'));
         });
-        
-        // Settings checkboxes
-        this.ui.showRomaji.addEventListener('change', () => this.updateHint());
-        this.ui.autoPlayAudio.addEventListener('change', () => {
-            if (this.ui.autoPlayAudio.checked && this.currentCharacter) {
-                this.playAudio(this.currentCharacter.char);
-            }
+
+        this.ui.statsBtn.addEventListener('click', function () {
+            self.updateStatsDisplay();
+            self.ui.statsModal.classList.add('active');
         });
-        
-        // Stats modal
-        this.ui.statsBtn.addEventListener('click', () => {
-            this.ui.statsModal.classList.add('active');
-            this.updateStatsDisplay();
+        this.ui.closeStats.addEventListener('click', function () {
+            self.ui.statsModal.classList.remove('active');
         });
-        
-        this.ui.closeStats.addEventListener('click', () => {
-            this.ui.statsModal.classList.remove('active');
+        this.ui.statsModal.addEventListener('click', function (e) {
+            if (e.target === self.ui.statsModal) self.ui.statsModal.classList.remove('active');
         });
-        
-        this.ui.resetStats.addEventListener('click', () => {
-            if (confirm('Are you sure you want to reset all progress?')) {
-                this.resetAllStats();
-            }
+        this.ui.resetStats.addEventListener('click', function () {
+            if (window.confirm('Reset all saved progress?')) self.resetAllStats();
         });
-        
-        // Close modal on outside click
-        this.ui.statsModal.addEventListener('click', (e) => {
-            if (e.target === this.ui.statsModal) {
-                this.ui.statsModal.classList.remove('active');
-            }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') self.ui.statsModal.classList.remove('active');
         });
-    }
-    
-    switchMode(mode) {
+    };
+
+    /* ---------- audio ---------- */
+
+    JapaneseQuiz.prototype.loadVoices = function () {
+        var self = this;
+        if (!this.synth) return;
+
+        var pick = function () {
+            var voices = self.synth.getVoices() || [];
+            self.jpVoice = voices.filter(function (v) {
+                return v.lang && v.lang.toLowerCase().indexOf('ja') === 0;
+            })[0] || null;
+        };
+
+        pick();
+        if (typeof this.synth.addEventListener === 'function') {
+            this.synth.addEventListener('voiceschanged', pick);
+        }
+        this.synth.onvoiceschanged = pick;
+    };
+
+    JapaneseQuiz.prototype.playAudio = function (text) {
+        if (!text) return;
+        if (!this.synth) {
+            this.toast('This browser has no speech support.');
+            return;
+        }
+        this.synth.cancel();
+        var utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'ja-JP';
+        utterance.rate = 0.85;
+        if (this.jpVoice) utterance.voice = this.jpVoice;
+        this.synth.speak(utterance);
+
+        if (!this.jpVoice && !this.toastShown) {
+            this.toastShown = true;
+            this.toast('No Japanese voice found — install one in your OS settings for accurate audio.');
+        }
+    };
+
+    JapaneseQuiz.prototype.toast = function (message) {
+        var el = this.ui.toast;
+        if (!el) return;
+        el.textContent = message;
+        el.classList.add('visible');
+        window.clearTimeout(this._toastTimer);
+        this._toastTimer = window.setTimeout(function () {
+            el.classList.remove('visible');
+        }, 4000);
+    };
+
+    /* ---------- data access (defensive) ---------- */
+
+    JapaneseQuiz.prototype.getCurrentSectionChars = function () {
+        var modeData = (typeof japaneseData !== 'undefined' && japaneseData)
+            ? japaneseData[this.currentMode] : null;
+        if (!modeData) {
+            console.warn('Missing data for mode:', this.currentMode);
+            return [];
+        }
+        var section = modeData[this.currentSection];
+        if (!Array.isArray(section)) {
+            console.warn('Missing data for section:', this.currentMode, this.currentSection);
+            return [];
+        }
+        return section;
+    };
+
+    JapaneseQuiz.prototype.countModeChars = function (mode) {
+        var modeData = (typeof japaneseData !== 'undefined' && japaneseData)
+            ? japaneseData[mode] : null;
+        if (!modeData) return 0;
+        return Object.keys(modeData).reduce(function (sum, key) {
+            return sum + (Array.isArray(modeData[key]) ? modeData[key].length : 0);
+        }, 0);
+    };
+
+    /* ---------- views ---------- */
+
+    JapaneseQuiz.prototype.switchMode = function (mode) {
+        if (!mode) return;
         this.currentMode = mode;
         this.currentSection = 'section1';
-        
-        this.ui.navBtns.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.mode === mode);
+
+        Array.prototype.forEach.call(this.ui.navBtns, function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
         });
-        
-        this.ui.sectionSelector.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.section === 'section1');
+        Array.prototype.forEach.call(this.ui.sectionBtns, function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-section') === 'section1');
         });
-        
+
+        this.ui.modeInfo.textContent = MODE_INFO[mode] || '';
         this.showStudyView();
-        this.updateModeInfo();
-    }
-    
-    switchSection(section) {
+    };
+
+    JapaneseQuiz.prototype.switchSection = function (section) {
+        if (!section) return;
         this.currentSection = section;
-        
-        this.ui.sectionSelector.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.section === section);
+
+        Array.prototype.forEach.call(this.ui.sectionBtns, function (btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-section') === section);
         });
-        
+
         this.updateStudyGrid();
-    }
-    
-    showStudyView() {
-        this.ui.studyView.style.display = 'block';
+    };
+
+    JapaneseQuiz.prototype.showStudyView = function () {
+        window.clearTimeout(this.advanceTimer);
         this.ui.quizView.style.display = 'none';
+        this.ui.studyView.style.display = 'block';
+        this.ui.quizBody.style.display = 'block';
+        this.ui.completionPanel.style.display = 'none';
         this.updateStudyGrid();
-    }
-    
-    updateStudyGrid() {
-        const sectionName = {
-            'section1': 'Part 1',
-            'section2': 'Part 2', 
-            'section3': 'Part 3'
-        };
-        
-        const modeTitles = {
-            'hiragana': 'ひらがな',
-            'katakana': 'カタカナ',
-            'kanji': '漢字'
-        };
-        
-        this.ui.sectionTitle.textContent = `Study ${modeTitles[this.currentMode]} - ${sectionName[this.currentSection]}`;
-        this.ui.sectionDescription.textContent = `Learn these ${this.getCurrentSectionChars().length} characters before taking the quiz.`;
-        
-        const chars = this.getCurrentSectionChars();
-        this.ui.studyGrid.innerHTML = chars.map(c => `
-            <div class="grid-item" onclick="quiz.playAudio('${c.char}')">
-                <div class="char">${c.char}</div>
-                <div class="reading">${c.romaji}</div>
-            </div>
-        `).join('');
-    }
-    
-    getCurrentSectionChars() {
-        return japaneseData[this.currentMode][this.currentSection];
-    }
-    
-    startQuiz() {
+    };
+
+    JapaneseQuiz.prototype.updateStudyGrid = function () {
+        var chars = this.getCurrentSectionChars();
+        var label = SECTION_LABELS[this.currentSection] || 'Study';
+        var modeTitle = MODE_TITLES[this.currentMode] || '';
+
+        this.ui.sectionTitle.textContent = 'Study ' + modeTitle + ' — ' + label;
+
+        if (!chars.length) {
+            this.ui.sectionDescription.textContent =
+                'No characters loaded for this section. Make sure data.js was updated too, then hard-refresh.';
+            this.ui.studyGrid.innerHTML = '';
+            return;
+        }
+
+        this.ui.sectionDescription.textContent =
+            'Tap a character to hear it. Learn these ' + chars.length +
+            ' characters, then take the quiz.';
+
+        var self = this;
+        this.ui.studyGrid.innerHTML = chars.map(function (c) {
+            var primary = (c.romaji && c.romaji[0]) || (c.readings && c.readings[0]) || '';
+            self.charRecord(self.currentMode, c.char).reviewed = true;
+            return '<button type="button" class="grid-item" data-char="' + c.char + '">' +
+                   '<span class="char">' + c.char + '</span>' +
+                   '<span class="reading">' + primary + '</span>' +
+                   '</button>';
+        }).join('');
+
+        this.touchDay();
+        this.saveStats();
+    };
+
+    /* ---------- quiz ---------- */
+
+    JapaneseQuiz.prototype.startQuiz = function () {
+        var chars = this.getCurrentSectionChars();
+        if (!chars.length) {
+            this.toast('Nothing to quiz — this section has no characters.');
+            return;
+        }
+
         this.ui.studyView.style.display = 'none';
         this.ui.quizView.style.display = 'block';
-        
-        // Clone and shuffle questions
-        this.questionList = [...this.getCurrentSectionChars()];
-        this.shuffleArray(this.questionList);
+        this.ui.quizBody.style.display = 'block';
+        this.ui.completionPanel.style.display = 'none';
+
+        this.questionList = chars.slice();
+        this.shuffle(this.questionList);
         this.currentIndex = 0;
         this.score = 0;
         this.streak = 0;
         this.totalAnswered = 0;
-        
-        // Mark as studied
-        this.questionList.forEach(q => {
-            this.stats.progress[this.currentMode].studied.add(q.char);
-            if (!this.stats.progress[this.currentMode].quizTaken.includes(this.currentSection)) {
-                this.stats.progress[this.currentMode].quizTaken.push(this.currentSection);
-            }
-        });
-        this.saveStats();
-        
+
         this.updateUI();
         this.showQuestion();
-    }
-    
-    shuffleArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
+    };
+
+    JapaneseQuiz.prototype.shuffle = function (arr) {
+        for (var i = arr.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
         }
-    }
-    
-    showQuestion() {
+    };
+
+    JapaneseQuiz.prototype.showQuestion = function () {
         if (this.currentIndex >= this.questionList.length) {
-            alert(`Quiz Complete! Score: ${this.score}/${this.totalAnswered}`);
-            this.showStudyView();
+            this.finishQuiz();
             return;
         }
-        
+
         this.currentCharacter = this.questionList[this.currentIndex];
         this.ui.characterDisplay.textContent = this.currentCharacter.char;
-        this.updateHint();
         this.ui.answerInput.value = '';
         this.ui.feedback.className = 'feedback';
-        this.ui.feedback.style.display = 'none';
-        this.ui.answerInput.focus();
-        
-        // Auto-play audio if enabled
-        if (this.ui.autoPlayAudio.checked) {
-            this.playAudio(this.currentCharacter.char);
-        }
-        
+        this.ui.feedbackText.textContent = '';
+        this.updateHint();
         this.updateProgress();
-    }
-    
-    updateHint() {
-        if (!this.currentCharacter) return;
-        
-        const showRomaji = this.ui.showRomaji.checked;
-        this.ui.hintDisplay.textContent = showRomaji ? 
-            `Reading: ${this.currentCharacter.romaji}` : '';
-    }
-    
-    checkAnswer() {
-        const answer = this.ui.answerInput.value.trim().toLowerCase();
-        if (!answer) return;
-        
-        const isValid = this.validateAnswer(answer, this.currentCharacter);
-        
-        this.totalAnswered++;
-        this.stats.totalAttempts++;
-        this.stats.totalStudied++;
-        
-        if (isValid) {
-            this.score++;
-            this.stats.correctAnswers++;
-            this.streak++;
-            if (this.streak > this.bestStreak) {
-                this.bestStreak = this.streak;
-                this.stats.bestStreak = this.bestStreak;
-            }
-            // Remove from wrong characters if it was there
-            if (this.stats.wrongCharacters[this.currentCharacter.char]) {
-                delete this.stats.wrongCharacters[this.currentCharacter.char];
-            }
-            this.showFeedback(true);
+
+        if (this.ui.autoPlayAudio.checked) this.playAudio(this.currentCharacter.char);
+        this.ui.answerInput.focus();
+    };
+
+    JapaneseQuiz.prototype.updateHint = function () {
+        if (!this.currentCharacter) { this.ui.hintDisplay.textContent = ''; return; }
+        this.ui.hintDisplay.textContent = this.ui.showRomaji.checked
+            ? 'Reading: ' + (this.currentCharacter.romaji || []).join(', ')
+            : '';
+    };
+
+    JapaneseQuiz.prototype.acceptedAnswers = function (q) {
+        return [].concat(q.romaji || [], q.readings || []).map(normalize);
+    };
+
+    JapaneseQuiz.prototype.validateAnswer = function (input, q) {
+        var guess = normalize(input);
+        if (!guess) return false;
+        return this.acceptedAnswers(q).indexOf(guess) !== -1;
+    };
+
+    JapaneseQuiz.prototype.checkAnswer = function () {
+        var raw = this.ui.answerInput.value;
+        if (!raw.trim()) return;
+
+        var q = this.currentCharacter;
+        var correct = this.validateAnswer(raw, q);
+        var record = this.charRecord(this.currentMode, q.char);
+
+        record.seen += 1;
+        this.stats.totalAttempts += 1;
+        this.totalAnswered += 1;
+
+        if (correct) {
+            record.correct += 1;
+            this.stats.totalCorrect += 1;
+            this.score += 1;
+            this.streak += 1;
+            if (this.streak > this.stats.bestStreak) this.stats.bestStreak = this.streak;
         } else {
+            record.wrong += 1;
             this.streak = 0;
-            // Track wrong character
-            if (!this.stats.wrongCharacters[this.currentCharacter.char]) {
-                this.stats.wrongCharacters[this.currentCharacter.char] = 0;
-            }
-            this.stats.wrongCharacters[this.currentCharacter.char]++;
-            this.showFeedback(false);
         }
-        
-        this.stats.lastActiveDate = new Date().toISOString();
+
+        this.touchDay();
         this.saveStats();
         this.updateUI();
-        
-        setTimeout(() => {
-            this.nextQuestion();
-        }, 1500);
-    }
-    
-    validateAnswer(answer, question) {
-        let normalizedAnswer = answer.replace(/[\s,.?!]/g, '');
-        
-        const romajiOptions = question.romaji.toLowerCase().split(', ').map(s => s.trim());
-        const japaneseReadings = question.reading.map(r => r.trim());
-        
-        return romajiOptions.some(opt => {
-            const opts = opt.split(/[ ,\/]/);
-            return opts.some(o => o && (
-                normalizedAnswer.includes(o) || 
-                o.includes(normalizedAnswer)
-            ));
-        }) || japaneseReadings.some(r => {
-            const readings = r.split(/[ ,\/]/);
-            return readings.some(read => read && (
-                normalizedAnswer.includes(read) ||
-                read.includes(normalizedAnswer)
-            ));
-        });
-    }
-    
-    showFeedback(isCorrect) {
-        this.ui.feedback.className = `feedback ${isCorrect ? 'correct' : 'incorrect'}`;
-        
-        if (isCorrect) {
-            this.ui.feedbackText.textContent = `✓ Correct! ${this.currentCharacter.char} = ${this.currentCharacter.romaji}`;
-        } else {
-            this.ui.feedbackText.innerHTML = `✗ Incorrect. ${this.currentCharacter.char} = ${this.currentCharacter.romaji}`;
+        this.showFeedback(correct, q);
+
+        var self = this;
+        window.clearTimeout(this.advanceTimer);
+        this.advanceTimer = window.setTimeout(function () {
+            self.currentIndex += 1;
+            self.showQuestion();
+        }, correct ? 900 : 2200);
+    };
+
+    JapaneseQuiz.prototype.showFeedback = function (correct, q) {
+        var answerText = (q.romaji || []).join(', ');
+        if (q.readings && q.readings.length) {
+            answerText += ' (' + q.readings.join(', ') + ')';
         }
-        
-        this.ui.feedback.style.display = 'block';
-    }
-    
-    nextQuestion() {
-        this.currentIndex++;
-        this.showQuestion();
-    }
-    
-    skipQuestion() {
+        this.ui.feedback.className = 'feedback ' + (correct ? 'correct' : 'incorrect');
+        this.ui.feedbackText.textContent = (correct ? '✓ Correct! ' : '✗ Not quite. ') +
+            q.char + ' = ' + answerText;
+    };
+
+    JapaneseQuiz.prototype.skipQuestion = function () {
         this.streak = 0;
-        this.totalAnswered++;
-        this.stats.totalAttempts++;
-        this.stats.lastActiveDate = new Date().toISOString();
-        this.saveStats();
-        this.nextQuestion();
-    }
-    
-    updateUI() {
+        this.currentIndex += 1;
+        this.showQuestion();
+    };
+
+    JapaneseQuiz.prototype.finishQuiz = function () {
+        var pct = this.totalAnswered
+            ? Math.round((this.score / this.totalAnswered) * 100) : 0;
+        this.ui.quizBody.style.display = 'none';
+        this.ui.completionPanel.style.display = 'block';
+        this.ui.completionText.textContent =
+            'You scored ' + this.score + ' / ' + this.totalAnswered + ' (' + pct + '%) on ' +
+            (MODE_TITLES[this.currentMode] || '') + ' ' +
+            (SECTION_LABELS[this.currentSection] || '') + '.';
+    };
+
+    JapaneseQuiz.prototype.updateUI = function () {
         this.ui.scoreDisplay.textContent = this.score;
         this.ui.totalDisplay.textContent = this.totalAnswered;
         this.ui.streakDisplay.textContent = this.streak;
-    }
-    
-    updateProgress() {
-        const progress = ((this.currentIndex) / this.questionList.length) * 100;
-        this.ui.progressFill.style.width = `${progress}%`;
-    }
-    
-    updateModeInfo() {
-        const info = {
-            hiragana: 'ひらがな - Basic Japanese syllabary. Essential for grammar particles and native words.',
-            katakana: 'カタカナ - Used primarily for foreign loanwords and emphasis.',
-            kanji: '漢字 - Logographic characters borrowed from Chinese. Each has multiple readings.'
-        };
-        this.ui.modeInfo.textContent = info[this.currentMode];
-    }
-    
-    // Statistics Methods
-    updateStatsDisplay() {
-        const accuracy = this.stats.totalAttempts > 0 ? 
-            Math.round((this.stats.correctAnswers / this.stats.totalAttempts) * 100) : 0;
-        
-        const daysSinceStart = Math.floor(
-            (new Date() - new Date(this.stats.startDate)) / (1000 * 60 * 60 * 24)
-        );
-        
-        document.getElementById('totalStudied').textContent = this.stats.totalStudied;
-        document.getElementById('accuracyRate').textContent = `${accuracy}%`;
-        document.getElementById('bestStreak').textContent = `${this.stats.bestStreak} 🔥`;
-        document.getElementById('daysActive').textContent = Math.max(1, daysSinceStart);
-        
-        // Weak characters
-        const weakList = document.getElementById('weakList');
-        const sortedWrong = Object.entries(this.stats.wrongCharacters)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
-        
-        if (sortedWrong.length === 0) {
-            weakList.innerHTML = '<p style="color:#666;">Great job! No weak areas yet.</p>';
-        } else {
-            weakList.innerHTML = sortedWrong
-                .map(([char, count]) => `<span class="weak-tag">${char} (${count}×)</span>`).join('');
-        }
-        
-        // Progress bars
-        const modes = ['hiragana', 'katakana', 'kanji'];
-        const totalSections = 3;
-        
-        modes.forEach(mode => {
-            const mastered = this.stats.progress[mode].studied.size;
-            const total = Object.keys(japaneseData[mode]).length * 
-                         Object.values(japaneseData[mode])[0].length;
-            const percent = Math.round((mastered / total) * 100);
-            
-            const elementId = `${mode}Progress`;
-            const percentId = `${mode}Percent`;
-            
-            document.getElementById(elementId).style.width = `${percent}%`;
-            document.getElementById(percentId).textContent = `${percent}%`;
-        });
-    }
-    
-    resetAllStats() {
-        localStorage.removeItem('japaneseLearningStats');
-        this.stats = this.loadStats();
-        this.ui.statsModal.classList.remove('active');
-        alert('Progress has been reset. Good luck studying!');
-    }
-}
+    };
 
-// Initialize app when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-    window.quiz = new JapaneseQuiz();
-});
+    JapaneseQuiz.prototype.updateProgress = function () {
+        var pct = this.questionList.length
+            ? (this.currentIndex / this.questionList.length) * 100 : 0;
+        this.ui.progressFill.style.width = pct + '%';
+    };
+
+    /* ---------- statistics ---------- */
+
+    JapaneseQuiz.prototype.updateStatsDisplay = function () {
+        var stats = this.stats;
+        var reviewed = 0;
+
+        ['hiragana', 'katakana', 'kanji'].forEach(function (mode) {
+            var bucket = stats.chars[mode] || {};
+            Object.keys(bucket).forEach(function (ch) {
+                if (bucket[ch].reviewed || bucket[ch].seen > 0) reviewed += 1;
+            });
+        });
+
+        var accuracy = stats.totalAttempts
+            ? Math.round((stats.totalCorrect / stats.totalAttempts) * 100) : 0;
+
+        document.getElementById('totalStudied').textContent = reviewed;
+        document.getElementById('accuracyRate').textContent = accuracy + '%';
+        document.getElementById('bestStreak').textContent = stats.bestStreak + ' 🔥';
+        document.getElementById('daysActive').textContent = Math.max(1, stats.daysSeen.length);
+
+        /* weakest characters */
+        var weak = [];
+        ['hiragana', 'katakana', 'kanji'].forEach(function (mode) {
+            var bucket = stats.chars[mode] || {};
+            Object.keys(bucket).forEach(function (ch) {
+                if (bucket[ch].wrong > 0) {
+                    weak.push({ char: ch, wrong: bucket[ch].wrong });
+                }
+            });
+        });
+        weak.sort(function (a, b) { return b.wrong - a.wrong; });
+
+        var weakList = document.getElementById('weakList');
+        if (!weak.length) {
+            weakList.innerHTML = '<p class="empty-note">No mistakes recorded yet — nice work!</p>';
+        } else {
+            weakList.innerHTML = weak.slice(0, 12).map(function (w) {
+                return '<span class="weak-tag">' + w.char + ' (' + w.wrong + '×)</span>';
+            }).join('');
+        }
+
+        /* coverage bars */
+        var self = this;
+        ['hiragana', 'katakana', 'kanji'].forEach(function (mode) {
+            var bucket = stats.chars[mode] || {};
+            var seen = Object.keys(bucket).filter(function (ch) {
+                return bucket[ch].reviewed || bucket[ch].seen > 0;
+            }).length;
+            var total = self.countModeChars(mode);
+            var pct = total ? Math.round((seen / total) * 100) : 0;
+
+            var bar = document.getElementById(mode + 'Progress');
+            var label = document.getElementById(mode + 'Percent');
+            if (bar) bar.style.width = pct + '%';
+            if (label) label.textContent = pct + '%';
+        });
+    };
+
+    JapaneseQuiz.prototype.resetAllStats = function () {
+        try { localStorage.removeItem(STORAGE_KEY); } catch (err) { /* ignore */ }
+        this.stats = this.defaultStats();
+        this.updateStatsDisplay();
+        this.toast('Progress reset.');
+    };
+
+    document.addEventListener('DOMContentLoaded', function () {
+        window.quiz = new JapaneseQuiz();
+    });
+})();

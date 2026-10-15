@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,10 +15,88 @@
             <button class="nav-btn" data-mode="katakana">カタカナ</button>
             <button class="nav-btn" data-mode="kanji">漢字</button>
         </nav>
+        <div class="header-actions">
+            <button class="stats-btn" id="statsBtn">📊 Statistics</button>
+        </div>
     </header>
     
     <main>
-        <div class="quiz-container">
+        <!-- Stats Modal -->
+        <div class="modal" id="statsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Your Learning Statistics</h2>
+                    <button class="close-btn" id="closeStats">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="stat-grid">
+                        <div class="stat-card">
+                            <h3>Total Characters Studied</h3>
+                            <p class="stat-value" id="totalStudied">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Accuracy Rate</h3>
+                            <p class="stat-value" id="accuracyRate">0%</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Best Streak</h3>
+                            <p class="stat-value" id="bestStreak">0 🔥</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Days Active</h3>
+                            <p class="stat-value" id="daysActive">0</p>
+                        </div>
+                    </div>
+                    
+                    <div class="weak-characters">
+                        <h3>Weakest Areas (Most Missed)</h3>
+                        <div id="weakList"></div>
+                    </div>
+                    
+                    <div class="progress-overall">
+                        <h3>Overall Progress</h3>
+                        <div class="mode-progress">
+                            <span>Hiragana:</span>
+                            <div class="progress-bar-small"><div class="progress-fill-small" id="hiraganaProgress"></div></div>
+                            <span id="hiraganaPercent">0%</span>
+                        </div>
+                        <div class="mode-progress">
+                            <span>Katakana:</span>
+                            <div class="progress-bar-small"><div class="progress-fill-small" id="katakanaProgress"></div></div>
+                            <span id="katakanaPercent">0%</span>
+                        </div>
+                        <div class="mode-progress">
+                            <span>Kanji:</span>
+                            <div class="progress-bar-small"><div class="progress-fill-small" id="kanjiProgress"></div></div>
+                            <span id="kanjiPercent">0%</span>
+                        </div>
+                    </div>
+                    
+                    <button class="reset-btn" id="resetStats">Reset All Progress</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Study View -->
+        <div class="study-container" id="studyView">
+            <div class="section-selector">
+                <button class="section-btn active" data-section="1">Part 1</button>
+                <button class="section-btn" data-section="2">Part 2</button>
+                <button class="section-btn" data-section="3">Part 3</button>
+            </div>
+            
+            <div class="study-intro" id="studyIntro">
+                <h2 id="sectionTitle">Study Hiragana - Part 1</h2>
+                <p id="sectionDescription">Learn these fundamental characters before taking the quiz.</p>
+                <div class="character-grid" id="studyGrid"></div>
+                <button class="start-quiz-btn" id="startQuizBtn">Start Quiz ✓</button>
+            </div>
+        </div>
+        
+        <!-- Quiz View (hidden initially) -->
+        <div class="quiz-container" id="quizView" style="display:none;">
+            <button class="back-study-btn" id="backStudyBtn">← Back to Study</button>
+            
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
@@ -29,6 +108,7 @@
             
             <div class="character-card" id="characterCard">
                 <div class="character" id="characterDisplay">?</div>
+                <button class="audio-btn" id="audioBtn" title="Listen to pronunciation">🔊</button>
                 <div class="hint" id="hintDisplay"></div>
             </div>
             
@@ -62,11 +142,14 @@
             <label>
                 <input type="checkbox" id="japaneseInput"> Allow Japanese Input
             </label>
+            <label>
+                <input type="checkbox" id="autoPlayAudio"> Auto-play Audio
+            </label>
         </div>
     </main>
     
     <footer>
-        <p>Built for Japanese learners • Hosted on GitHub Pages</p>
+        <p>Built for Japanese learners • Hosted on GitHub Pages • Your progress is saved locally</p>
     </footer>
     
     <script src="data.js"></script>

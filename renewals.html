@@ -80,21 +80,15 @@
 
     .renewal-row:last-child { border-bottom: none; }
 
-    .renewal-row label { font-weight: 600; font-size: 0.95rem; }
+    .renewal-row .item-name { font-weight: 600; font-size: 0.95rem; }
 
-    .renewal-row input[type="date"] {
-      width: 100%;
-      padding: 8px 12px;
-      font-size: 0.95rem;
-      border: 2px solid #e0e0eb;
-      border-radius: 8px;
-      outline: none;
-      transition: border-color 0.15s ease;
-      font-family: inherit;
+    .renewal-row .date-display {
+      font-size: 1rem;
       color: var(--text);
+      font-variant-numeric: tabular-nums;
     }
 
-    .renewal-row input[type="date"]:focus { border-color: var(--accent); }
+    .renewal-row .date-display.not-set { color: var(--muted); font-style: italic; }
 
     .status-badge {
       font-size: 0.78rem;
@@ -110,27 +104,6 @@
     .status-soon { color: #fff; background: var(--soon); }
     .status-ok { color: #fff; background: var(--ok); }
 
-    .save-note {
-      color: var(--muted);
-      font-size: 0.82rem;
-      margin-top: 8px;
-    }
-
-    .actions { margin-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
-
-    button.reset-btn {
-      background: #f0f0f5;
-      color: var(--muted);
-      border: none;
-      padding: 10px 20px;
-      border-radius: 10px;
-      font-size: 0.88rem;
-      cursor: pointer;
-      transition: background 0.15s ease;
-    }
-
-    button.reset-btn:hover { background: #e4e4ec; }
-
     footer {
       margin-top: 40px;
       color: var(--muted);
@@ -140,10 +113,9 @@
 
     @media (max-width: 500px) {
       .renewal-row {
-        grid-template-columns: 1fr;
-        gap: 6px;
+        grid-template-columns: 1fr auto;
       }
-      .status-badge { justify-self: start; }
+      .renewal-row .item-name { grid-column: 1 / -1; }
     }
   </style>
 </head>
@@ -154,94 +126,40 @@
     </div>
 
     <h1>Car Renewals 🚗</h1>
-    <p class="subtitle">Dates are saved automatically in your browser. Update them as you collect the paperwork.</p>
+    <p class="subtitle">Renewal dates are maintained in this page's source code and updated via git.</p>
 
-    <div class="car-section">
-      <div class="car-header">
-        <span class="emoji">🚙</span>
-        <h2>Mazda</h2>
-      </div>
-      <div class="renewal-row">
-        <label for="mazda-insurance">Insurance</label>
-        <input type="date" id="mazda-insurance" data-car="mazda" data-item="insurance">
-        <span class="status-badge status-placeholder" id="mazda-insurance-status">—</span>
-      </div>
-      <div class="renewal-row">
-        <label for="mazda-mot">MOT</label>
-        <input type="date" id="mazda-mot" data-car="mazda" data-item="mot">
-        <span class="status-badge status-placeholder" id="mazda-mot-status">—</span>
-      </div>
-      <div class="renewal-row">
-        <label for="mazda-tax">Tax</label>
-        <input type="date" id="mazda-tax" data-car="mazda" data-item="tax">
-        <span class="status-badge status-placeholder" id="mazda-tax-status">—</span>
-      </div>
-      <div class="renewal-row">
-        <label for="mazda-breakdown">Breakdown</label>
-        <input type="date" id="mazda-breakdown" data-car="mazda" data-item="breakdown">
-        <span class="status-badge status-placeholder" id="mazda-breakdown-status">—</span>
-      </div>
-    </div>
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- EDIT DATES HERE — format YYYY-MM-DD, or "" if not yet known -->
+    <!-- Then commit and git push to publish the change              -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <script>
+      const RENEWAL_DATA = {
+        mazda: {
+          label: 'Mazda',
+          emoji: '🚙',
+          insurance: '1900-01-01',
+          mot: '1900-01-01',
+          tax: '1900-01-01',
+          breakdown: '1900-01-01'
+        },
+        toyota: {
+          label: 'Toyota',
+          emoji: '🚗',
+          insurance: '1900-01-01',
+          mot: '1900-01-01',
+          tax: '1900-01-01',
+          breakdown: '1900-01-01'
+        }
+      };
+    </script>
 
-    <div class="car-section">
-      <div class="car-header">
-        <span class="emoji">🚗</span>
-        <h2>Toyota</h2>
-      </div>
-      <div class="renewal-row">
-        <label for="toyota-insurance">Insurance</label>
-        <input type="date" id="toyota-insurance" data-car="toyota" data-item="insurance">
-        <span class="status-badge status-placeholder" id="toyota-insurance-status">—</span>
-      </div>
-      <div class="renewal-row">
-        <label for="toyota-mot">MOT</label>
-        <input type="date" id="toyota-mot" data-car="toyota" data-item="mot">
-        <span class="status-badge status-placeholder" id="toyota-mot-status">—</span>
-      </div>
-      <div class="renewal-row">
-        <label for="toyota-tax">Tax</label>
-        <input type="date" id="toyota-tax" data-car="toyota" data-item="tax">
-        <span class="status-badge status-placeholder" id="toyota-tax-status">—</span>
-      </div>
-      <div class="renewal-row">
-        <label for="toyota-breakdown">Breakdown</label>
-        <input type="date" id="toyota-breakdown" data-car="toyota" data-item="breakdown">
-        <span class="status-badge status-placeholder" id="toyota-breakdown-status">—</span>
-      </div>
-    </div>
+    <div id="cars"></div>
 
-    <div class="actions">
-      <button class="reset-btn" id="clearAll">Clear All Dates</button>
-    </div>
-
-    <footer>Dates stored locally in your browser • <a href="index.html" style="color: var(--muted);">Back to home</a></footer>
+    <footer>Dates managed via version control • <a href="index.html" style="color: var(--muted);">Back to home</a></footer>
   </div>
 
   <script>
-    const STORAGE_KEY = 'carRenewals_v1';
-    const PLACEHOLDER_DATE = '1900-01-01';
-
-    const inputs = Array.from(document.querySelectorAll('input[data-car]'));
-
-    function loadSaved() {
-      let saved = {};
-      try {
-        saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-      } catch (e) { /* ignore corrupted data */ }
-      inputs.forEach(function(input) {
-        var key = input.dataset.car + '-' + input.dataset.item;
-        input.value = saved[key] || PLACEHOLDER_DATE;
-      });
-    }
-
-    function save() {
-      var data = {};
-      inputs.forEach(function(input) {
-        var key = input.dataset.car + '-' + input.dataset.item;
-        data[key] = input.value;
-      });
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
-    }
+    const ITEM_LABELS = { insurance: 'Insurance', mot: 'MOT', tax: 'Tax', breakdown: 'Breakdown' };
 
     function daysUntil(dateStr) {
       var today = new Date();
@@ -250,48 +168,54 @@
       return Math.round((target - today) / 86400000);
     }
 
-    function updateBadges() {
-      inputs.forEach(function(input) {
-        var badge = document.getElementById(
-          input.dataset.car + '-' + input.dataset.item + '-status'
-        );
-        if (!input.value || input.value === PLACEHOLDER_DATE) {
-          badge.textContent = 'Not set';
-          badge.className = 'status-badge status-placeholder';
-          return;
-        }
-        var d = daysUntil(input.value);
-        var pretty = new Date(input.value + 'T00:00:00').toLocaleDateString('en-GB');
-        if (d < 0) {
-          badge.textContent = 'Expired';
-          badge.className = 'status-badge status-expired';
-        } else if (d <= 30) {
-          badge.textContent = d + ' day' + (d === 1 ? '' : 's');
-          badge.className = 'status-badge status-soon';
-        } else {
-          badge.textContent = pretty;
-          badge.className = 'status-badge status-ok';
-        }
-      });
+    function isPlaceholder(dateStr) {
+      return !dateStr || dateStr === '1900-01-01';
     }
 
-    inputs.forEach(function(input) {
-      input.addEventListener('change', function() {
-        save();
-        updateBadges();
-      });
-    });
+    function prettyDate(dateStr) {
+      return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB');
+    }
 
-    document.getElementById('clearAll').addEventListener('click', function() {
-      if (confirm('Clear all saved renewal dates?')) {
-        localStorage.removeItem(STORAGE_KEY);
-        loadSaved();
-        updateBadges();
+    function buildRow(carKey, itemKey) {
+      var val = RENEWAL_DATA[carKey][itemKey];
+      var notSet = isPlaceholder(val);
+      var statusHtml;
+
+      if (notSet) {
+        statusHtml = '<span class="status-badge status-placeholder">Not set</span>';
+      } else {
+        var d = daysUntil(val);
+        if (d < 0) {
+          statusHtml = '<span class="status-badge status-expired">Expired</span>';
+        } else if (d <= 30) {
+          statusHtml = '<span class="status-badge status-soon">' + d + ' day' + (d === 1 ? '' : 's') + '</span>';
+        } else {
+          statusHtml = '<span class="status-badge status-ok">' + prettyDate(val) + '</span>';
+        }
       }
-    });
 
-    loadSaved();
-    updateBadges();
+      return '<div class="renewal-row">' +
+        '<span class="item-name">' + ITEM_LABELS[itemKey] + '</span>' +
+        '<span class="date-display' + (notSet ? ' not-set' : '') + '">' + (notSet ? 'Not set' : prettyDate(val)) + '</span>' +
+        statusHtml +
+        '</div>';
+    }
+
+    function render() {
+      var html = '';
+      Object.keys(RENEWAL_DATA).forEach(function(carKey) {
+        var car = RENEWAL_DATA[carKey];
+        html += '<div class="car-section">' +
+          '<div class="car-header"><span class="emoji">' + car.emoji + '</span><h2>' + car.label + '</h2></div>' +
+          ['insurance', 'mot', 'tax', 'breakdown'].map(function(itemKey) {
+            return buildRow(carKey, itemKey);
+          }).join('') +
+          '</div>';
+      });
+      document.getElementById('cars').innerHTML = html;
+    }
+
+    render();
   </script>
 </body>
 </html>

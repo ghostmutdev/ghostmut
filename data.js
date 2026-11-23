@@ -1,5 +1,3 @@
-console.log('[DATA.JS] Loading Japanese character data...');
-
 const japaneseData = {
     hiragana: {
         section1: [
@@ -115,14 +113,14 @@ const japaneseData = {
         section1: [
             { char: '一', romaji: ['ichi', 'hitotsu'], readings: ['いち', 'ひとつ'] },
             { char: '二', romaji: ['ni', 'futatsu'], readings: ['に', 'ふたつ'] },
-            { char: '三', romaji: ['san', 'mittsu'], readings: ['さん', 'みつ'] },
+            { char: '三', romaji: ['san', 'mittsu'], readings: ['さん', 'みっつ'] },
             { char: '四', romaji: ['shi', 'yon', 'yottsu'], readings: ['し', 'よん', 'よっつ'] },
             { char: '五', romaji: ['go', 'itsutsu'], readings: ['ご', 'いつつ'] },
             { char: '六', romaji: ['roku', 'muttsu'], readings: ['ろく', 'むっつ'] },
             { char: '七', romaji: ['nana', 'shichi', 'nanatsu'], readings: ['なな', 'しち', 'ななつ'] },
             { char: '八', romaji: ['hachi', 'yattsu'], readings: ['はち', 'やつ'] },
-            { char: '九', romaji: ['kyuu', 'kyu', 'ku', 'kokonotsu'], readings: ['きゅう', 'く', 'ここのつ'] },
-            { char: '十', romaji: ['juu', 'ju', 'too', 'to'], readings: ['じゅう', 'とお'] }
+            { char: '九', romaji: ['kyuu', 'kyu', 'kokonotsu'], readings: ['きゅう', 'く', 'ここのつ'] },
+            { char: '十', romaji: ['juu', 'ju', 'too'], readings: ['じゅう', 'とお'] }
         ],
         section2: [
             { char: '百', romaji: ['hyaku'], readings: ['ひゃく'] },
@@ -134,7 +132,8 @@ const japaneseData = {
             { char: '水', romaji: ['mizu', 'sui'], readings: ['みず', 'すい'] },
             { char: '木', romaji: ['ki', 'moku'], readings: ['き', 'もく'] },
             { char: '金', romaji: ['kane', 'kin'], readings: ['かね', 'きん'] },
-            { char: '土', romaji: ['tsuchi', 'do'], readings: ['つち', 'ど'] }
+            { char: '土', romaji: ['tsuchi', 'do'], readings: ['つち', 'ど'] },
+            { char: '年', romaji: ['toshi', 'nen'], readings: ['とし', 'ねん'] }
         ],
         section3: [
             { char: '大', romaji: ['oo', 'dai', 'tai'], readings: ['おお', 'だい', 'たい'] },
@@ -143,16 +142,11 @@ const japaneseData = {
             { char: '上', romaji: ['ue', 'kami', 'jou', 'jo'], readings: ['うえ', 'かみ', 'じょう'] },
             { char: '下', romaji: ['shita', 'shimo', 'ge', 'ka'], readings: ['した', 'しも', 'げ', 'か'] },
             { char: '左', romaji: ['hidari'], readings: ['ひだり'] },
-            { char: '右', romaji: ['migi', 'yuu', 'yu'], readings: ['みぎ', 'ゆう'] },
+            { char: '右', romaji: ['migi', 'u', 'yuu', 'yu'], readings: ['みぎ', 'う', 'ゆう'] },
             { char: '本', romaji: ['hon', 'moto'], readings: ['ほん'] },
             { char: '国', romaji: ['kuni', 'koku'], readings: ['くに', 'こく'] },
-            { char: '年', romaji: ['toshi', 'nen'], readings: ['とし', 'ねん'] },
-            { char: '語', romaji: ['go', 'kata'], readings: ['ご'] },
+            { char: '語', romaji: ['go'], readings: ['ご'] },
             { char: '学', romaji: ['gaku', 'mana'], readings: ['がく', 'まな'] }
         ]
     }
 };
-
-console.log('[DATA.JS] Hiragana sections:', Object.keys(japaneseData.hiragana).length);
-console.log('[DATA.JS] Section1 hiragana count:', japaneseData.hiragana.section1?.length || 0);
-console.log('[DATA.JS] Data loaded successfully!');

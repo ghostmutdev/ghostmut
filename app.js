@@ -1,6 +1,12 @@
 (function() {
     'use strict';
-    console.log('[APP.JS] Starting...');
+
+    const DEBUG = false;
+    function log() {
+        if (DEBUG && typeof console !== 'undefined') {
+            console.log.apply(console, arguments);
+        }
+    }
 
     const STORAGE_KEY = 'japaneseLearningStats_v2';
     const MODE_TITLES = { hiragana: 'ひらがな', katakana: 'カタカナ', kanji: '漢字' };
@@ -12,6 +18,12 @@
     };
 
     function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function(ch) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+        });
+    }
     
     function normalize(val) {
         return String(val || '').toLowerCase()
@@ -84,9 +96,9 @@
             return;
         }
 
-        console.log('[INIT] japaneseData loaded:', typeof japaneseData);
-        console.log('[INIT] Sections available:', Object.keys(japaneseData));
-        console.log('[INIT] Hiragana section1 count:', japaneseData.hiragana?.section1?.length || 0);
+        log('[INIT] japaneseData loaded:', typeof japaneseData);
+        log('[INIT] Sections available:', Object.keys(japaneseData));
+        log('[INIT] Hiragana section1 count:', japaneseData.hiragana?.section1?.length || 0);
 
         this.bindEvents();
         this.loadVoices();
@@ -135,6 +147,9 @@
             if (tile) {
                 var char = tile.getAttribute('data-char') || tile.textContent.trim()[0];
                 self.playAudio(char);
+                var rec = self.charRecord(self.currentMode, char);
+                rec.reviewed = true;
+                self.saveStats();
             }
         });
 
@@ -226,7 +241,7 @@
         var pickVoice = function() {
             var voices = self.synth.getVoices() || [];
             self.jpVoice = voices.find(v => v.lang && v.lang.toLowerCase().indexOf('ja') === 0);
-            console.log('[VOICE]', self.jpVoice ? 'Found: ' + self.jpVoice.name : 'Not found');
+            log('[VOICE]', self.jpVoice ? 'Found: ' + self.jpVoice.name : 'Not found');
         };
 
         pickVoice();
@@ -252,7 +267,7 @@
 
     JapaneseQuiz.prototype.switchMode = function(mode) {
         if (!mode || !japaneseData[mode]) return;
-        console.log('[SWITCH] Mode:', mode);
+        log('[SWITCH] Mode:', mode);
         this.currentMode = mode;
         this.currentSection = 'section1';
 
@@ -268,7 +283,7 @@
     };
 
     JapaneseQuiz.prototype.switchSection = function(section) {
-        console.log('[SWITCH] Section:', section);
+        log('[SWITCH] Section:', section);
         if (!section) return;
         this.currentSection = section;
 
@@ -289,7 +304,7 @@
     };
 
     JapaneseQuiz.prototype.updateStudyGrid = function() {
-        console.log('[GRID] Updating for:', this.currentMode, this.currentSection);
+        log('[GRID] Updating for:', this.currentMode, this.currentSection);
         var chars = this.getSectionChars();
         var label = SECTION_LABELS[this.currentSection] || 'Part';
         var modeTitle = MODE_TITLES[this.currentMode];
@@ -304,17 +319,15 @@
             return;
         }
 
-        console.log('[GRID] Rendering', chars.length, 'characters');
+        log('[GRID] Rendering', chars.length, 'characters');
         this.ui.sectionDescription.textContent = 
             'Click a character to hear it. Learn these ' + chars.length + ' characters, then take the quiz.';
 
-        var self = this;
         this.ui.studyGrid.innerHTML = chars.map(function(c) {
             var primary = (c.romaji && c.romaji[0]) || (c.readings && c.readings[0]) || '???';
-            self.charRecord(self.currentMode, c.char).reviewed = true;
-            return '<button type="button" class="grid-item" data-char="' + c.char + '">' +
-                   '<div class="char">' + c.char + '</div>' +
-                   '<div class="reading">' + primary + '</div>' +
+            return '<button type="button" class="grid-item" data-char="' + escapeHtml(c.char) + '">' +
+                   '<div class="char">' + escapeHtml(c.char) + '</div>' +
+                   '<div class="reading">' + escapeHtml(primary) + '</div>' +
                    '</button>';
         }).join('');
 
@@ -342,7 +355,7 @@
             return;
         }
 
-        console.log('[QUIZ] Starting with', chars.length, 'questions');
+        log('[QUIZ] Starting with', chars.length, 'questions');
         this.ui.studyView.style.display = 'none';
         this.ui.quizView.style.display = 'block';
         this.ui.quizBody.style.display = 'block';
@@ -373,7 +386,7 @@
         }
 
         this.currentCharacter = this.questionList[this.currentIndex];
-        console.log('[QUESTION]', this.currentIndex + 1, ':', this.currentCharacter.char);
+        log('[QUESTION]', this.currentIndex + 1, ':', this.currentCharacter.char);
 
         this.ui.characterDisplay.textContent = this.currentCharacter.char;
         this.ui.answerInput.value = '';
@@ -456,6 +469,7 @@
     };
 
     JapaneseQuiz.prototype.skipQuestion = function() {
+        window.clearTimeout(this.advanceTimer);
         this.streak = 0;
         this.currentIndex += 1;
         this.showQuestion();
@@ -554,8 +568,8 @@
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('[INIT] DOM ready');
+        log('[INIT] DOM ready');
         window.quiz = new JapaneseQuiz();
-        console.log('[INIT] Quiz instance created');
+        log('[INIT] Quiz instance created');
     });
 })();

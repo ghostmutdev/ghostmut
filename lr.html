@@ -206,11 +206,13 @@
       aggressionValue.textContent = `${aggressionSlider.value}%`;
     });
 
-    // Generate function
-    function generateLR(count) {
+    // Generate function: aggressiveness picks a random favoured side (L or R)
+    // and skews the coin-flips toward it. 0% = fair 50/50, 100% = heavily biased.
+    function generateLR(count, favoredSide, bias) {
       let result = '';
+      const other = favoredSide === 'L' ? 'R' : 'L';
       for (let i = 0; i < count; i++) {
-        result += Math.random() < 0.5 ? 'L' : 'R';
+        result += Math.random() < bias ? favoredSide : other;
       }
       return result;
     }
@@ -233,7 +235,10 @@
 
       // Simulate slight delay for effect (optional)
       setTimeout(() => {
-        const sequence = generateLR(count);
+        const aggression = parseInt(aggressionSlider.value, 10);
+        const bias = 0.5 + (aggression / 100) * 0.45;
+        const favoredSide = Math.random() < 0.5 ? 'L' : 'R';
+        const sequence = generateLR(count, favoredSide, bias);
         outputEl.textContent = sequence;
         outputEl.classList.remove('output-empty');
         generateBtn.disabled = false;
